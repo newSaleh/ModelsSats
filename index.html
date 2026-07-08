@@ -1,4 +1,4 @@
-<title>دفتر المخزون — تحليل وفرز</title>
+<title>محلل جدول بيانات — فلترة ومجاميع</title>
 <style>
   :root {
     --bg: #f3f1ea;
@@ -123,6 +123,42 @@
     margin: 0 0 14px;
   }
 
+  .hint {
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+    margin: -6px 0 12px;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 160px;
+    resize: vertical;
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    padding: 10px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: var(--surface-raised);
+    color: var(--ink);
+    direction: ltr;
+    text-align: left;
+  }
+  textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .paste-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+    align-items: center;
+  }
+
+  .paste-note {
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+
   .filter-row {
     display: flex;
     flex-wrap: wrap;
@@ -141,6 +177,7 @@
   }
 
   select { min-width: 170px; cursor: pointer; }
+  select:disabled { cursor: not-allowed; opacity: 0.6; }
   select:focus-visible, button:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
@@ -253,7 +290,7 @@
   table {
     border-collapse: collapse;
     width: 100%;
-    min-width: 960px;
+    min-width: 720px;
     font-size: 0.86rem;
   }
 
@@ -283,7 +320,7 @@
   tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-raised) 55%, transparent); }
   tbody tr:hover { background: var(--accent-soft); }
 
-  td.balance-negative { color: var(--negative); font-weight: 700; background: var(--negative-soft); }
+  td.num-negative { color: var(--negative); font-weight: 700; background: var(--negative-soft); }
 
   .empty-row td {
     text-align: center;
@@ -303,9 +340,20 @@
 
 <div class="page">
   <header class="top">
-    <h1>دفتر المخزون — بنطلون رجالي رياضة</h1>
-    <div class="meta">المورد: <b>شركة اتش ار ام التجارية</b> (0666) · عدد الأصناف: <b id="totalCount">—</b></div>
+    <h1>محلل جدول بيانات — فلترة ومجاميع</h1>
+    <div class="meta">عدد الأعمدة: <b id="colCount">—</b> · عدد الصفوف: <b id="totalCount">—</b></div>
   </header>
+
+  <section class="panel">
+    <h2>لصق البيانات</h2>
+    <p class="hint">الصق نصًا يبدأ بصف عناوين الأعمدة، ثم صفوف البيانات تحته، بحيث تكون الأعمدة مفصولة بـ Tab (كما يحدث تلقائيًا عند النسخ من إكسل أو جوجل شيتس). تُكتشف الأعمدة الرقمية تلقائيًا لعرضها في قوائم المجموع.</p>
+    <textarea id="rawInput" spellcheck="false"></textarea>
+    <div class="paste-actions">
+      <button class="add" id="convertBtn" type="button">تحويل إلى جدول</button>
+      <button class="clear-all" id="clearInput" type="button">مسح النص</button>
+      <span class="paste-note" id="parseNote"></span>
+    </div>
+  </section>
 
   <section class="panel">
     <h2>الفلترة</h2>
@@ -323,11 +371,11 @@
     <div class="sums">
       <div class="sum-card">
         <select id="sumCol1" aria-label="اختر العمود الأول للمجموع"></select>
-        <div class="sum-value" id="sumVal1">0</div>
+        <div class="sum-value" id="sumVal1">—</div>
       </div>
       <div class="sum-card">
         <select id="sumCol2" aria-label="اختر العمود الثاني للمجموع"></select>
-        <div class="sum-value" id="sumVal2">0</div>
+        <div class="sum-value" id="sumVal2">—</div>
       </div>
     </div>
   </section>
@@ -343,37 +391,19 @@
 
   <footer class="status">
     <span id="rowCountNote"></span>
-    <span>الأرقام معروضة بترقيم لاتيني تبعًا لصيغة البيانات الأصلية.</span>
+    <span>الأرقام تُعرض بترقيم لاتيني، والأعمدة الرقمية تُكتشف تلقائيًا من البيانات الملصوقة.</span>
   </footer>
 </div>
 
 <script>
-  const COLS = [
-    { key: "supplierCode",  label: "رمز المورد",         numeric: false },
-    { key: "supplierName",  label: "اسم المورد",          numeric: false },
-    { key: "groupName",     label: "اسم مجموعة المخزون",  numeric: false },
-    { key: "itemCode",      label: "رمز المخزون",         numeric: false },
-    { key: "modelCode",     label: "رمز الموديل",         numeric: false },
-    { key: "lastEntry",     label: "آخر عملية إدخال",     numeric: false },
-    { key: "qtySold",       label: "الكمية المباعة",      numeric: true },
-    { key: "avgPrice",      label: "متوسط سعر الوحدة",    numeric: true },
-    { key: "totalPrice",    label: "إجمالي السعر",        numeric: true },
-    { key: "balance",       label: "الرصيد",              numeric: true }
-  ];
-
-  const ROWS = [{"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612503108500", "modelCode": "ST25", "lastEntry": "26-Jun-2026", "qtySold": 66.0, "avgPrice": 20.0, "totalPrice": 1320.0, "balance": 254.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603508000", "modelCode": "ST89", "lastEntry": "04-Jul-2026", "qtySold": 61.0, "avgPrice": 15.0, "totalPrice": 915.0, "balance": 87.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603507700", "modelCode": "ST70H", "lastEntry": "01-Jul-2026", "qtySold": 50.0, "avgPrice": 15.0, "totalPrice": 750.0, "balance": 33.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649200", "modelCode": "S1003ML", "lastEntry": "27-Jun-2026", "qtySold": 39.0, "avgPrice": 15.0, "totalPrice": 585.0, "balance": 157.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603507600", "modelCode": "ST69H", "lastEntry": "01-Jul-2026", "qtySold": 36.0, "avgPrice": 15.0, "totalPrice": 540.0, "balance": 41.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603506400", "modelCode": "ST67", "lastEntry": "01-Jul-2026", "qtySold": 32.0, "avgPrice": 15.0, "totalPrice": 480.0, "balance": 42.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603506500", "modelCode": "ST71", "lastEntry": "04-Jul-2026", "qtySold": 31.0, "avgPrice": 15.0, "totalPrice": 465.0, "balance": 117.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603508400", "modelCode": "ST64H", "lastEntry": "01-Jul-2026", "qtySold": 29.0, "avgPrice": 15.0, "totalPrice": 435.0, "balance": 47.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504829600", "modelCode": "ST28", "lastEntry": "20-Jun-2026", "qtySold": 29.0, "avgPrice": 15.0, "totalPrice": 435.0, "balance": 164.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603508700", "modelCode": "ST91", "lastEntry": "04-Jul-2026", "qtySold": 28.0, "avgPrice": 15.0, "totalPrice": 420.0, "balance": 118.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603507400", "modelCode": "ST65H", "lastEntry": "01-Jul-2026", "qtySold": 26.0, "avgPrice": 15.0, "totalPrice": 390.0, "balance": 52.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649400", "modelCode": "S1005ML", "lastEntry": "14-Jun-2026", "qtySold": 26.0, "avgPrice": 15.0, "totalPrice": 390.0, "balance": 84.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649000", "modelCode": "S1001ML", "lastEntry": "29-Jun-2026", "qtySold": 25.0, "avgPrice": 15.0, "totalPrice": 375.0, "balance": 202.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603508300", "modelCode": "ST63H", "lastEntry": "01-Jul-2026", "qtySold": 25.0, "avgPrice": 15.0, "totalPrice": 375.0, "balance": 50.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612503108600", "modelCode": "ST26", "lastEntry": "06-Jun-2026", "qtySold": 19.0, "avgPrice": 20.0, "totalPrice": 380.0, "balance": 14.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600650100", "modelCode": "S1012ML", "lastEntry": "08-Jun-2026", "qtySold": 18.0, "avgPrice": 15.0, "totalPrice": 270.0, "balance": 58.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602893400", "modelCode": "M5131L", "lastEntry": "30-May-2026", "qtySold": 18.0, "avgPrice": 49.0, "totalPrice": 882.0, "balance": 47.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504830000", "modelCode": "ST33B", "lastEntry": "13-Jun-2026", "qtySold": 11.0, "avgPrice": 15.0, "totalPrice": 165.0, "balance": 161.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649700", "modelCode": "S1008ML", "lastEntry": "08-Jun-2026", "qtySold": 8.0, "avgPrice": 15.0, "totalPrice": 120.0, "balance": 37.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603507500", "modelCode": "ST68H", "lastEntry": "01-Jul-2026", "qtySold": 8.0, "avgPrice": 15.0, "totalPrice": 120.0, "balance": 65.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602892900", "modelCode": "M5126L", "lastEntry": "29-May-2026", "qtySold": 7.0, "avgPrice": 49.0, "totalPrice": 343.0, "balance": 18.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504830100", "modelCode": "ST34", "lastEntry": "09-May-2026", "qtySold": 7.0, "avgPrice": 15.0, "totalPrice": 105.0, "balance": 106.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504829700", "modelCode": "ST31", "lastEntry": "24-Mar-2026", "qtySold": 6.0, "avgPrice": 15.0, "totalPrice": 90.0, "balance": 74.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602893600", "modelCode": "M5133L", "lastEntry": "30-May-2026", "qtySold": 6.0, "avgPrice": 49.0, "totalPrice": 294.0, "balance": 62.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602893000", "modelCode": "M5127L", "lastEntry": "20-May-2026", "qtySold": 4.0, "avgPrice": 49.0, "totalPrice": 196.0, "balance": 3.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602893500", "modelCode": "M5132L", "lastEntry": "30-May-2026", "qtySold": 3.0, "avgPrice": 49.0, "totalPrice": 147.0, "balance": 64.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649100", "modelCode": "S1002ML", "lastEntry": "21-May-2026", "qtySold": 3.0, "avgPrice": 15.0, "totalPrice": 45.0, "balance": 29.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602894300", "modelCode": "M5140L", "lastEntry": "03-May-2026", "qtySold": 3.0, "avgPrice": 49.0, "totalPrice": 147.0, "balance": 6.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504829900", "modelCode": "ST33A", "lastEntry": "09-May-2026", "qtySold": 2.0, "avgPrice": 15.0, "totalPrice": 30.0, "balance": 1.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504409800", "modelCode": "M5043L", "lastEntry": "20-Jan-2026", "qtySold": 1.0, "avgPrice": 49.0, "totalPrice": 49.0, "balance": -1.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504830700", "modelCode": "ST52", "lastEntry": "03-Apr-2026", "qtySold": 1.0, "avgPrice": 15.0, "totalPrice": 15.0, "balance": -1.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602894200", "modelCode": "M5139L", "lastEntry": "16-May-2026", "qtySold": 1.0, "avgPrice": 49.0, "totalPrice": 49.0, "balance": 4.0}];
-
-  const numFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
-  const moneyFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  function fmtCell(col, value) {
-    if (!col.numeric) return value;
-    if (col.key === "avgPrice" || col.key === "totalPrice") return moneyFmt.format(value);
-    return numFmt.format(value);
-  }
-
+  let COLS = [];
+  let ROWS = [];
   let activeFilters = []; // { key, value }
 
+  const rawInputEl = document.getElementById("rawInput");
+  const convertBtn = document.getElementById("convertBtn");
+  const clearInputBtn = document.getElementById("clearInput");
+  const parseNoteEl = document.getElementById("parseNote");
   const filterColumnEl = document.getElementById("filterColumn");
   const filterValueEl = document.getElementById("filterValue");
   const addFilterBtn = document.getElementById("addFilter");
@@ -387,6 +417,71 @@
   const bodyRowsEl = document.getElementById("bodyRows");
   const rowCountNoteEl = document.getElementById("rowCountNote");
   const totalCountEl = document.getElementById("totalCount");
+  const colCountEl = document.getElementById("colCount");
+
+  const numFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+  const fmtCache = new Map();
+
+  function numberFormatter(decimals) {
+    if (!fmtCache.has(decimals)) {
+      fmtCache.set(decimals, new Intl.NumberFormat("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }));
+    }
+    return fmtCache.get(decimals);
+  }
+
+  function fmtCell(col, value) {
+    if (!col.numeric) return value;
+    return numberFormatter(col.decimals || 0).format(value);
+  }
+
+  function isNumericValue(raw) {
+    if (!/^-?[0-9,]+(\.[0-9]+)?$/.test(raw)) return false;
+    const digitsOnly = raw.replace(/^-/, "").replace(/,/g, "");
+    if (digitsOnly.length > 1 && digitsOnly[0] === "0") return false;
+    return true;
+  }
+
+  function parseInput(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+    if (lines.length < 2) return null;
+
+    const hasTabs = lines.some(l => l.includes("\t"));
+    const splitLine = hasTabs ? (l => l.split("\t")) : (l => l.split(/ {2,}/));
+
+    const headerCells = splitLine(lines[0]).map(c => c.trim());
+    const bodyCells = lines.slice(1).map(l => splitLine(l).map(c => c.trim()));
+    const colCount = headerCells.length;
+    if (colCount < 2) return null;
+
+    const cols = headerCells.map((label, i) => ({ key: "c" + i, label: label || `عمود ${i + 1}`, numeric: false, decimals: 0 }));
+
+    for (let i = 0; i < colCount; i++) {
+      let allNumeric = true;
+      let sawValue = false;
+      let maxDecimals = 0;
+      for (const cells of bodyCells) {
+        const raw = (cells[i] || "").trim();
+        if (raw === "") continue;
+        sawValue = true;
+        if (!isNumericValue(raw)) { allNumeric = false; break; }
+        const m = raw.match(/\.([0-9]+)$/);
+        if (m) maxDecimals = Math.max(maxDecimals, m[1].length);
+      }
+      cols[i].numeric = sawValue && allNumeric;
+      cols[i].decimals = maxDecimals;
+    }
+
+    const rows = bodyCells.map(cells => {
+      const row = {};
+      cols.forEach((col, i) => {
+        const raw = (cells[i] || "").trim();
+        row[col.key] = col.numeric ? (raw === "" ? 0 : parseFloat(raw.replace(/,/g, ""))) : raw;
+      });
+      return row;
+    });
+
+    return { cols, rows };
+  }
 
   function buildHeader() {
     headRowEl.innerHTML = COLS.map(c =>
@@ -394,16 +489,20 @@
     ).join("");
   }
 
-  function populateColumnSelect(selectEl, includeNumericOnly) {
-    selectEl.innerHTML = COLS
-      .filter(c => !includeNumericOnly || c.numeric)
-      .map(c => `<option value="${c.key}">${c.label}</option>`)
-      .join("");
+  function populateColumnSelect(selectEl, numericOnly) {
+    const list = COLS.filter(c => !numericOnly || c.numeric);
+    if (list.length === 0) {
+      selectEl.innerHTML = `<option value="">لا توجد أعمدة رقمية</option>`;
+      selectEl.disabled = true;
+      return;
+    }
+    selectEl.disabled = false;
+    selectEl.innerHTML = list.map(c => `<option value="${c.key}">${c.label}</option>`).join("");
   }
 
   function uniqueValuesFor(key) {
-    const seen = new Set();
     const col = COLS.find(c => c.key === key);
+    const seen = new Set();
     ROWS.forEach(r => seen.add(r[key]));
     let values = Array.from(seen);
     if (col.numeric) {
@@ -416,6 +515,7 @@
 
   function populateValueSelect() {
     const key = filterColumnEl.value;
+    if (!key) { filterValueEl.innerHTML = ""; return; }
     const values = uniqueValuesFor(key);
     filterValueEl.innerHTML = values
       .map(v => `<option value="${encodeURIComponent(String(v.raw))}">${v.display}</option>`)
@@ -427,7 +527,8 @@
   }
 
   function labelFor(key) {
-    return COLS.find(c => c.key === key).label;
+    const col = COLS.find(c => c.key === key);
+    return col ? col.label : key;
   }
 
   function renderChips() {
@@ -438,7 +539,7 @@
     chipsEl.innerHTML = activeFilters
       .map((f, i) => {
         const col = COLS.find(c => c.key === f.key);
-        const display = fmtCell(col, col.numeric ? Number(f.value) : f.value);
+        const display = col ? fmtCell(col, col.numeric ? Number(f.value) : f.value) : f.value;
         return `<span class="chip">${labelFor(f.key)}: ${display}<button data-idx="${i}" aria-label="إزالة الفلتر" type="button">✕</button></span>`;
       })
       .join("");
@@ -451,6 +552,10 @@
   }
 
   function renderTable(filtered) {
+    if (COLS.length === 0) {
+      bodyRowsEl.innerHTML = "";
+      return;
+    }
     if (filtered.length === 0) {
       bodyRowsEl.innerHTML = `<tr class="empty-row"><td colspan="${COLS.length}">لا توجد صفوف مطابقة لهذه الفلاتر</td></tr>`;
       return;
@@ -459,7 +564,7 @@
       .map(row => {
         const cells = COLS.map(c => {
           const v = fmtCell(c, row[c.key]);
-          const negCls = c.key === "balance" && row.balance < 0 ? " balance-negative" : "";
+          const negCls = c.numeric && row[c.key] < 0 ? " num-negative" : "";
           return `<td class="${c.numeric ? "num" : ""}${negCls}">${v}</td>`;
         }).join("");
         return `<tr>${cells}</tr>`;
@@ -471,6 +576,7 @@
     [[sumCol1El, sumVal1El], [sumCol2El, sumVal2El]].forEach(([sel, out]) => {
       const key = sel.value;
       const col = COLS.find(c => c.key === key);
+      if (!col) { out.textContent = "—"; return; }
       const total = filtered.reduce((acc, r) => acc + r[key], 0);
       out.textContent = fmtCell(col, total);
     });
@@ -481,13 +587,34 @@
     renderChips();
     renderTable(filtered);
     renderSums(filtered);
-    rowCountNoteEl.textContent = `عدد الصفوف الظاهرة: ${filtered.length} من أصل ${ROWS.length}`;
-    addFilterBtn.disabled = false;
+    rowCountNoteEl.textContent = COLS.length
+      ? `عدد الصفوف الظاهرة: ${filtered.length} من أصل ${ROWS.length}`
+      : "";
+    addFilterBtn.disabled = COLS.length === 0;
+  }
+
+  function loadData(cols, rows) {
+    COLS = cols;
+    ROWS = rows;
+    activeFilters = [];
+    buildHeader();
+    populateColumnSelect(filterColumnEl, false);
+    populateValueSelect();
+    populateColumnSelect(sumCol1El, true);
+    populateColumnSelect(sumCol2El, true);
+    const numericCols = COLS.filter(c => c.numeric);
+    if (numericCols[0]) sumCol1El.value = numericCols[0].key;
+    if (numericCols[1]) sumCol2El.value = numericCols[1].key;
+    else if (numericCols[0]) sumCol2El.value = numericCols[0].key;
+    totalCountEl.textContent = numFmt.format(ROWS.length);
+    colCountEl.textContent = numFmt.format(COLS.length);
+    render();
   }
 
   filterColumnEl.addEventListener("change", populateValueSelect);
   addFilterBtn.addEventListener("click", () => {
     const key = filterColumnEl.value;
+    if (!key) return;
     const value = decodeURIComponent(filterValueEl.value);
     if (activeFilters.some(f => f.key === key && f.value === value)) return;
     activeFilters.push({ key, value });
@@ -500,13 +627,27 @@
   sumCol1El.addEventListener("change", () => render());
   sumCol2El.addEventListener("change", () => render());
 
-  buildHeader();
-  populateColumnSelect(filterColumnEl, false);
-  populateValueSelect();
-  populateColumnSelect(sumCol1El, true);
-  populateColumnSelect(sumCol2El, true);
-  sumCol1El.value = "qtySold";
-  sumCol2El.value = "balance";
-  totalCountEl.textContent = numFmt.format(ROWS.length);
-  render();
+  convertBtn.addEventListener("click", () => {
+    const parsed = parseInput(rawInputEl.value);
+    if (!parsed) {
+      parseNoteEl.textContent = "تعذّر التعرف على البيانات — تأكد من وجود صف عناوين وصف بيانات واحد على الأقل، والأعمدة مفصولة بـ Tab.";
+      return;
+    }
+    loadData(parsed.cols, parsed.rows);
+    parseNoteEl.textContent = `تم تحميل ${parsed.rows.length} صفًا و ${parsed.cols.length} أعمدة.`;
+  });
+
+  clearInputBtn.addEventListener("click", () => {
+    rawInputEl.value = "";
+    parseNoteEl.textContent = "";
+    rawInputEl.focus();
+  });
+
+  rawInputEl.value = "رمز المورد\tاسم المورد\tاسم مجموعة المخزون\tرمز المخزون\tرمز الموديل\tآخر عملية إدخال\tالكمية المباعة\tمتوسط سعر الوحدة\tإجمالي السعر\tالرصيد\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612503108500\tST25\t26-Jun-2026\t66\t20.00\t1,320.00\t254\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603508000\tST89\t04-Jul-2026\t61\t15.00\t915.00\t87\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603507700\tST70H\t01-Jul-2026\t50\t15.00\t750.00\t33\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612600649200\tS1003ML\t27-Jun-2026\t39\t15.00\t585.00\t157\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603507600\tST69H\t01-Jul-2026\t36\t15.00\t540.00\t41\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603506400\tST67\t01-Jul-2026\t32\t15.00\t480.00\t42\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603506500\tST71\t04-Jul-2026\t31\t15.00\t465.00\t117\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603508400\tST64H\t01-Jul-2026\t29\t15.00\t435.00\t47\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612504829600\tST28\t20-Jun-2026\t29\t15.00\t435.00\t164\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603508700\tST91\t04-Jul-2026\t28\t15.00\t420.00\t118\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603507400\tST65H\t01-Jul-2026\t26\t15.00\t390.00\t52\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612600649400\tS1005ML\t14-Jun-2026\t26\t15.00\t390.00\t84\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612600649000\tS1001ML\t29-Jun-2026\t25\t15.00\t375.00\t202\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603508300\tST63H\t01-Jul-2026\t25\t15.00\t375.00\t50\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612503108600\tST26\t06-Jun-2026\t19\t20.00\t380.00\t14\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612600650100\tS1012ML\t08-Jun-2026\t18\t15.00\t270.00\t58\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612602893400\tM5131L\t30-May-2026\t18\t49.00\t882.00\t47\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612504830000\tST33B\t13-Jun-2026\t11\t15.00\t165.00\t161\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612600649700\tS1008ML\t08-Jun-2026\t8\t15.00\t120.00\t37\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612603507500\tST68H\t01-Jul-2026\t8\t15.00\t120.00\t65\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612602892900\tM5126L\t29-May-2026\t7\t49.00\t343.00\t18\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612504830100\tST34\t09-May-2026\t7\t15.00\t105.00\t106\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612504829700\tST31\t24-Mar-2026\t6\t15.00\t90.00\t74\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612602893600\tM5133L\t30-May-2026\t6\t49.00\t294.00\t62\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612602893000\tM5127L\t20-May-2026\t4\t49.00\t196.00\t3\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612602893500\tM5132L\t30-May-2026\t3\t49.00\t147.00\t64\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612600649100\tS1002ML\t21-May-2026\t3\t15.00\t45.00\t29\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612602894300\tM5140L\t03-May-2026\t3\t49.00\t147.00\t6\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612504829900\tST33A\t09-May-2026\t2\t15.00\t30.00\t1\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612504409800\tM5043L\t20-Jan-2026\t1\t49.00\t49.00\t-1\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612504830700\tST52\t03-Apr-2026\t1\t15.00\t15.00\t-1\n0666\tشركة اتش ار ام التجارية\tبنطلون رجالي رياضة\t066612602894200\tM5139L\t16-May-2026\t1\t49.00\t49.00\t4";
+
+  const initial = parseInput(rawInputEl.value);
+  if (initial) {
+    loadData(initial.cols, initial.rows);
+    parseNoteEl.textContent = `تم تحميل ${initial.rows.length} صفًا و ${initial.cols.length} أعمدة (بيانات نموذجية — يمكنك استبدالها بلصق نصك).`;
+  }
 </script>

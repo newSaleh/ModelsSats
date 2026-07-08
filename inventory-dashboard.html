@@ -1,0 +1,512 @@
+<title>دفتر المخزون — تحليل وفرز</title>
+<style>
+  :root {
+    --bg: #f3f1ea;
+    --surface: #ffffff;
+    --surface-raised: #fbfaf6;
+    --line: #ddd7c7;
+    --line-strong: #c9c1aa;
+    --ink: #24221c;
+    --ink-muted: #75705f;
+    --ink-faint: #a29b86;
+    --accent: #1f5f5b;
+    --accent-ink: #0f3e3b;
+    --accent-soft: #dcebe8;
+    --accent-soft-line: #b9d6d1;
+    --positive: #2f7d4f;
+    --negative: #b3432b;
+    --negative-soft: #f7e6e0;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(36,34,28,0.05), 0 6px 20px -12px rgba(36,34,28,0.25);
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #14181a;
+    --surface: #1a1f21;
+    --surface-raised: #1f2528;
+    --line: #2d3436;
+    --line-strong: #3c4547;
+    --ink: #e9e6dd;
+    --ink-muted: #9aa19c;
+    --ink-faint: #6c7472;
+    --accent: #63b3ac;
+    --accent-ink: #cdece7;
+    --accent-soft: #1d3634;
+    --accent-soft-line: #2c4d49;
+    --positive: #6fcf8f;
+    --negative: #e2846a;
+    --negative-soft: #3a2620;
+    color-scheme: dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181a;
+      --surface: #1a1f21;
+      --surface-raised: #1f2528;
+      --line: #2d3436;
+      --line-strong: #3c4547;
+      --ink: #e9e6dd;
+      --ink-muted: #9aa19c;
+      --ink-faint: #6c7472;
+      --accent: #63b3ac;
+      --accent-ink: #cdece7;
+      --accent-soft: #1d3634;
+      --accent-soft-line: #2c4d49;
+      --positive: #6fcf8f;
+      --negative: #e2846a;
+      --negative-soft: #3a2620;
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    direction: rtl;
+    font-family: Tahoma, "Segoe UI", "Noto Naskh Arabic", "Arial", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    padding: 28px 20px 60px;
+  }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  header.top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+  }
+
+  header.top h1 {
+    font-size: 1.5rem;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    text-wrap: balance;
+  }
+
+  header.top .meta {
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+  }
+
+  header.top .meta b { color: var(--ink); font-weight: 600; }
+
+  section.panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+  }
+
+  .panel h2 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-muted);
+    margin: 0 0 14px;
+  }
+
+  .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  select, button.ghost {
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--surface-raised);
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+
+  select { min-width: 170px; cursor: pointer; }
+  select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  button.add {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+  }
+  button.add:hover { filter: brightness(1.08); }
+  button.add:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    min-height: 1px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-soft-line);
+    color: var(--accent-ink);
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 5px 8px 5px 12px;
+    border-radius: 999px;
+  }
+
+  .chip button {
+    all: unset;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75rem;
+    line-height: 1;
+  }
+
+  .chip button:hover { filter: brightness(1.15); }
+
+  .clear-all {
+    background: none;
+    border: none;
+    color: var(--ink-muted);
+    font-size: 0.8rem;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 5px 4px;
+  }
+
+  .sums {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+
+  .sum-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sum-card select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sum-value {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent-ink);
+    direction: ltr;
+    text-align: right;
+  }
+
+  .sum-card .count-note {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 960px;
+    font-size: 0.86rem;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface-raised);
+    color: var(--ink-muted);
+    font-weight: 700;
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: right;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--line-strong);
+    white-space: nowrap;
+  }
+
+  th.num, td.num { text-align: left; direction: ltr; font-variant-numeric: tabular-nums; }
+
+  tbody td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-raised) 55%, transparent); }
+  tbody tr:hover { background: var(--accent-soft); }
+
+  td.balance-negative { color: var(--negative); font-weight: 700; background: var(--negative-soft); }
+
+  .empty-row td {
+    text-align: center;
+    color: var(--ink-muted);
+    padding: 26px;
+  }
+
+  footer.status {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+  }
+</style>
+
+<div class="page">
+  <header class="top">
+    <h1>دفتر المخزون — بنطلون رجالي رياضة</h1>
+    <div class="meta">المورد: <b>شركة اتش ار ام التجارية</b> (0666) · عدد الأصناف: <b id="totalCount">—</b></div>
+  </header>
+
+  <section class="panel">
+    <h2>الفلترة</h2>
+    <div class="filter-row">
+      <select id="filterColumn" aria-label="اختر العمود"></select>
+      <select id="filterValue" aria-label="اختر القيمة"></select>
+      <button class="add" id="addFilter">إضافة الفلتر</button>
+      <button class="clear-all" id="clearFilters" type="button">مسح كل الفلاتر</button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section class="panel">
+    <h2>المجاميع (للصفوف الظاهرة بعد الفلترة)</h2>
+    <div class="sums">
+      <div class="sum-card">
+        <select id="sumCol1" aria-label="اختر العمود الأول للمجموع"></select>
+        <div class="sum-value" id="sumVal1">0</div>
+      </div>
+      <div class="sum-card">
+        <select id="sumCol2" aria-label="اختر العمود الثاني للمجموع"></select>
+        <div class="sum-value" id="sumVal2">0</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="table-wrap">
+    <table id="dataTable">
+      <thead>
+        <tr id="headRow"></tr>
+      </thead>
+      <tbody id="bodyRows"></tbody>
+    </table>
+  </div>
+
+  <footer class="status">
+    <span id="rowCountNote"></span>
+    <span>الأرقام معروضة بترقيم لاتيني تبعًا لصيغة البيانات الأصلية.</span>
+  </footer>
+</div>
+
+<script>
+  const COLS = [
+    { key: "supplierCode",  label: "رمز المورد",         numeric: false },
+    { key: "supplierName",  label: "اسم المورد",          numeric: false },
+    { key: "groupName",     label: "اسم مجموعة المخزون",  numeric: false },
+    { key: "itemCode",      label: "رمز المخزون",         numeric: false },
+    { key: "modelCode",     label: "رمز الموديل",         numeric: false },
+    { key: "lastEntry",     label: "آخر عملية إدخال",     numeric: false },
+    { key: "qtySold",       label: "الكمية المباعة",      numeric: true },
+    { key: "avgPrice",      label: "متوسط سعر الوحدة",    numeric: true },
+    { key: "totalPrice",    label: "إجمالي السعر",        numeric: true },
+    { key: "balance",       label: "الرصيد",              numeric: true }
+  ];
+
+  const ROWS = [{"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612503108500", "modelCode": "ST25", "lastEntry": "26-Jun-2026", "qtySold": 66.0, "avgPrice": 20.0, "totalPrice": 1320.0, "balance": 254.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603508000", "modelCode": "ST89", "lastEntry": "04-Jul-2026", "qtySold": 61.0, "avgPrice": 15.0, "totalPrice": 915.0, "balance": 87.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603507700", "modelCode": "ST70H", "lastEntry": "01-Jul-2026", "qtySold": 50.0, "avgPrice": 15.0, "totalPrice": 750.0, "balance": 33.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649200", "modelCode": "S1003ML", "lastEntry": "27-Jun-2026", "qtySold": 39.0, "avgPrice": 15.0, "totalPrice": 585.0, "balance": 157.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603507600", "modelCode": "ST69H", "lastEntry": "01-Jul-2026", "qtySold": 36.0, "avgPrice": 15.0, "totalPrice": 540.0, "balance": 41.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603506400", "modelCode": "ST67", "lastEntry": "01-Jul-2026", "qtySold": 32.0, "avgPrice": 15.0, "totalPrice": 480.0, "balance": 42.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603506500", "modelCode": "ST71", "lastEntry": "04-Jul-2026", "qtySold": 31.0, "avgPrice": 15.0, "totalPrice": 465.0, "balance": 117.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603508400", "modelCode": "ST64H", "lastEntry": "01-Jul-2026", "qtySold": 29.0, "avgPrice": 15.0, "totalPrice": 435.0, "balance": 47.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504829600", "modelCode": "ST28", "lastEntry": "20-Jun-2026", "qtySold": 29.0, "avgPrice": 15.0, "totalPrice": 435.0, "balance": 164.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603508700", "modelCode": "ST91", "lastEntry": "04-Jul-2026", "qtySold": 28.0, "avgPrice": 15.0, "totalPrice": 420.0, "balance": 118.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603507400", "modelCode": "ST65H", "lastEntry": "01-Jul-2026", "qtySold": 26.0, "avgPrice": 15.0, "totalPrice": 390.0, "balance": 52.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649400", "modelCode": "S1005ML", "lastEntry": "14-Jun-2026", "qtySold": 26.0, "avgPrice": 15.0, "totalPrice": 390.0, "balance": 84.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649000", "modelCode": "S1001ML", "lastEntry": "29-Jun-2026", "qtySold": 25.0, "avgPrice": 15.0, "totalPrice": 375.0, "balance": 202.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603508300", "modelCode": "ST63H", "lastEntry": "01-Jul-2026", "qtySold": 25.0, "avgPrice": 15.0, "totalPrice": 375.0, "balance": 50.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612503108600", "modelCode": "ST26", "lastEntry": "06-Jun-2026", "qtySold": 19.0, "avgPrice": 20.0, "totalPrice": 380.0, "balance": 14.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600650100", "modelCode": "S1012ML", "lastEntry": "08-Jun-2026", "qtySold": 18.0, "avgPrice": 15.0, "totalPrice": 270.0, "balance": 58.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602893400", "modelCode": "M5131L", "lastEntry": "30-May-2026", "qtySold": 18.0, "avgPrice": 49.0, "totalPrice": 882.0, "balance": 47.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504830000", "modelCode": "ST33B", "lastEntry": "13-Jun-2026", "qtySold": 11.0, "avgPrice": 15.0, "totalPrice": 165.0, "balance": 161.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649700", "modelCode": "S1008ML", "lastEntry": "08-Jun-2026", "qtySold": 8.0, "avgPrice": 15.0, "totalPrice": 120.0, "balance": 37.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612603507500", "modelCode": "ST68H", "lastEntry": "01-Jul-2026", "qtySold": 8.0, "avgPrice": 15.0, "totalPrice": 120.0, "balance": 65.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602892900", "modelCode": "M5126L", "lastEntry": "29-May-2026", "qtySold": 7.0, "avgPrice": 49.0, "totalPrice": 343.0, "balance": 18.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504830100", "modelCode": "ST34", "lastEntry": "09-May-2026", "qtySold": 7.0, "avgPrice": 15.0, "totalPrice": 105.0, "balance": 106.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504829700", "modelCode": "ST31", "lastEntry": "24-Mar-2026", "qtySold": 6.0, "avgPrice": 15.0, "totalPrice": 90.0, "balance": 74.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602893600", "modelCode": "M5133L", "lastEntry": "30-May-2026", "qtySold": 6.0, "avgPrice": 49.0, "totalPrice": 294.0, "balance": 62.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602893000", "modelCode": "M5127L", "lastEntry": "20-May-2026", "qtySold": 4.0, "avgPrice": 49.0, "totalPrice": 196.0, "balance": 3.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602893500", "modelCode": "M5132L", "lastEntry": "30-May-2026", "qtySold": 3.0, "avgPrice": 49.0, "totalPrice": 147.0, "balance": 64.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612600649100", "modelCode": "S1002ML", "lastEntry": "21-May-2026", "qtySold": 3.0, "avgPrice": 15.0, "totalPrice": 45.0, "balance": 29.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602894300", "modelCode": "M5140L", "lastEntry": "03-May-2026", "qtySold": 3.0, "avgPrice": 49.0, "totalPrice": 147.0, "balance": 6.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504829900", "modelCode": "ST33A", "lastEntry": "09-May-2026", "qtySold": 2.0, "avgPrice": 15.0, "totalPrice": 30.0, "balance": 1.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504409800", "modelCode": "M5043L", "lastEntry": "20-Jan-2026", "qtySold": 1.0, "avgPrice": 49.0, "totalPrice": 49.0, "balance": -1.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612504830700", "modelCode": "ST52", "lastEntry": "03-Apr-2026", "qtySold": 1.0, "avgPrice": 15.0, "totalPrice": 15.0, "balance": -1.0}, {"supplierCode": "0666", "supplierName": "شركة اتش ار ام التجارية", "groupName": "بنطلون رجالي رياضة", "itemCode": "066612602894200", "modelCode": "M5139L", "lastEntry": "16-May-2026", "qtySold": 1.0, "avgPrice": 49.0, "totalPrice": 49.0, "balance": 4.0}];
+
+  const numFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+  const moneyFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function fmtCell(col, value) {
+    if (!col.numeric) return value;
+    if (col.key === "avgPrice" || col.key === "totalPrice") return moneyFmt.format(value);
+    return numFmt.format(value);
+  }
+
+  let activeFilters = []; // { key, value }
+
+  const filterColumnEl = document.getElementById("filterColumn");
+  const filterValueEl = document.getElementById("filterValue");
+  const addFilterBtn = document.getElementById("addFilter");
+  const clearFiltersBtn = document.getElementById("clearFilters");
+  const chipsEl = document.getElementById("chips");
+  const sumCol1El = document.getElementById("sumCol1");
+  const sumCol2El = document.getElementById("sumCol2");
+  const sumVal1El = document.getElementById("sumVal1");
+  const sumVal2El = document.getElementById("sumVal2");
+  const headRowEl = document.getElementById("headRow");
+  const bodyRowsEl = document.getElementById("bodyRows");
+  const rowCountNoteEl = document.getElementById("rowCountNote");
+  const totalCountEl = document.getElementById("totalCount");
+
+  function buildHeader() {
+    headRowEl.innerHTML = COLS.map(c =>
+      `<th class="${c.numeric ? "num" : ""}">${c.label}</th>`
+    ).join("");
+  }
+
+  function populateColumnSelect(selectEl, includeNumericOnly) {
+    selectEl.innerHTML = COLS
+      .filter(c => !includeNumericOnly || c.numeric)
+      .map(c => `<option value="${c.key}">${c.label}</option>`)
+      .join("");
+  }
+
+  function uniqueValuesFor(key) {
+    const seen = new Set();
+    const col = COLS.find(c => c.key === key);
+    ROWS.forEach(r => seen.add(r[key]));
+    let values = Array.from(seen);
+    if (col.numeric) {
+      values.sort((a, b) => a - b);
+    } else {
+      values.sort((a, b) => String(a).localeCompare(String(b), "ar"));
+    }
+    return values.map(v => ({ raw: v, display: fmtCell(col, v) }));
+  }
+
+  function populateValueSelect() {
+    const key = filterColumnEl.value;
+    const values = uniqueValuesFor(key);
+    filterValueEl.innerHTML = values
+      .map(v => `<option value="${encodeURIComponent(String(v.raw))}">${v.display}</option>`)
+      .join("");
+  }
+
+  function passesFilters(row) {
+    return activeFilters.every(f => String(row[f.key]) === f.value);
+  }
+
+  function labelFor(key) {
+    return COLS.find(c => c.key === key).label;
+  }
+
+  function renderChips() {
+    if (activeFilters.length === 0) {
+      chipsEl.innerHTML = "";
+      return;
+    }
+    chipsEl.innerHTML = activeFilters
+      .map((f, i) => {
+        const col = COLS.find(c => c.key === f.key);
+        const display = fmtCell(col, col.numeric ? Number(f.value) : f.value);
+        return `<span class="chip">${labelFor(f.key)}: ${display}<button data-idx="${i}" aria-label="إزالة الفلتر" type="button">✕</button></span>`;
+      })
+      .join("");
+    chipsEl.querySelectorAll("button[data-idx]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        activeFilters.splice(Number(btn.dataset.idx), 1);
+        render();
+      });
+    });
+  }
+
+  function renderTable(filtered) {
+    if (filtered.length === 0) {
+      bodyRowsEl.innerHTML = `<tr class="empty-row"><td colspan="${COLS.length}">لا توجد صفوف مطابقة لهذه الفلاتر</td></tr>`;
+      return;
+    }
+    bodyRowsEl.innerHTML = filtered
+      .map(row => {
+        const cells = COLS.map(c => {
+          const v = fmtCell(c, row[c.key]);
+          const negCls = c.key === "balance" && row.balance < 0 ? " balance-negative" : "";
+          return `<td class="${c.numeric ? "num" : ""}${negCls}">${v}</td>`;
+        }).join("");
+        return `<tr>${cells}</tr>`;
+      })
+      .join("");
+  }
+
+  function renderSums(filtered) {
+    [[sumCol1El, sumVal1El], [sumCol2El, sumVal2El]].forEach(([sel, out]) => {
+      const key = sel.value;
+      const col = COLS.find(c => c.key === key);
+      const total = filtered.reduce((acc, r) => acc + r[key], 0);
+      out.textContent = fmtCell(col, total);
+    });
+  }
+
+  function render() {
+    const filtered = ROWS.filter(passesFilters);
+    renderChips();
+    renderTable(filtered);
+    renderSums(filtered);
+    rowCountNoteEl.textContent = `عدد الصفوف الظاهرة: ${filtered.length} من أصل ${ROWS.length}`;
+    addFilterBtn.disabled = false;
+  }
+
+  filterColumnEl.addEventListener("change", populateValueSelect);
+  addFilterBtn.addEventListener("click", () => {
+    const key = filterColumnEl.value;
+    const value = decodeURIComponent(filterValueEl.value);
+    if (activeFilters.some(f => f.key === key && f.value === value)) return;
+    activeFilters.push({ key, value });
+    render();
+  });
+  clearFiltersBtn.addEventListener("click", () => {
+    activeFilters = [];
+    render();
+  });
+  sumCol1El.addEventListener("change", () => render());
+  sumCol2El.addEventListener("change", () => render());
+
+  buildHeader();
+  populateColumnSelect(filterColumnEl, false);
+  populateValueSelect();
+  populateColumnSelect(sumCol1El, true);
+  populateColumnSelect(sumCol2El, true);
+  sumCol1El.value = "qtySold";
+  sumCol2El.value = "balance";
+  totalCountEl.textContent = numFmt.format(ROWS.length);
+  render();
+</script>
